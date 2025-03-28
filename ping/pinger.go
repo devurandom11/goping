@@ -121,7 +121,7 @@ func (p *Pinger) sendPings() error {
 		Body: &icmp.Echo{
 			ID:   os.Getpid() & 0xffff,
 			Seq:  1,
-			Data: []byte("HELLO-FROM-GOPING"),
+			Data: []byte("goping"),
 		},
 	}
 	

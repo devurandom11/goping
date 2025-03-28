@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/windows-fping/goging/ping"
-	"github.com/windows-fping/goging/target"
+	"github.com/windows-fping/goping/ping"
+	"github.com/windows-fping/goping/target"
 )
 
 func main() {
@@ -94,7 +94,7 @@ func main() {
 			targets = stdinTargets
 		} else {
 			fmt.Println("Error: No targets specified")
-			fmt.Println("Usage: goging [options] <target1> <target2> ...")
+			fmt.Println("Usage: goping [options] <target1> <target2> ...")
 			flag.PrintDefaults()
 			os.Exit(1)
 		}

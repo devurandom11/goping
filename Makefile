@@ -2,11 +2,11 @@
 
 # Build binary
 build:
-	go build -o goging.exe
+	go build -o goping.exe
 
 # Clean build artifacts
 clean:
-	if exist goging.exe del goging.exe
+	if exist goping.exe del goping.exe
 
 # Run tests
 test:
@@ -14,7 +14,7 @@ test:
 
 # Build for release (optimized)
 release:
-	go build -ldflags="-s -w" -o goging.exe
+	go build -ldflags="-s -w" -o goping.exe
 
 # Default target
 all: build 

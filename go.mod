@@ -1,4 +1,4 @@
-module github.com/windows-fping/goging
+module github.com/windows-fping/goping
 
 go 1.21
 
