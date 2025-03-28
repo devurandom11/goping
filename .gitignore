@@ -1,0 +1,10 @@
+# Ignore all files for a GO project
+build/
+*.exe
+*.out
+*.log
+*.log.*
+.vscode/
+
+.cursorignore
+.cursorrules

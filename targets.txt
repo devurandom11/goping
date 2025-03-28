@@ -1,0 +1,8 @@
+# Sample targets for GoPing
+127.0.0.1
+localhost
+google.com
+# The following line is commented out
+# bing.com
+8.8.8.8
+1.1.1.1 
