@@ -35,7 +35,7 @@ func main() {
 	quiet := flag.Bool("q", false, "Quiet mode - only show summary")
 	showStats := flag.Bool("s", false, "Show summary statistics")
 	inputFile := flag.String("f", "", "Read targets from a file")
-	generateRange := flag.Bool("g", false, "Generate targets from IP range or CIDR notation")
+	cidrOrRange := flag.String("g", "", "Generate targets from IP range (start-end) or CIDR notation (x.x.x.x/y)")
 
 	flag.Parse()
 
@@ -48,26 +48,28 @@ func main() {
 	var err error
 
 	// Handle target input
-	if *generateRange {
-		args := flag.Args()
-		if len(args) < 1 {
-			fmt.Println("Error: -g requires IP range arguments")
-			os.Exit(1)
-		}
-
-		if strings.Contains(args[0], "/") {
-			// CIDR notation
-			targets, err = target.GenerateFromCIDR(args[0])
-		} else if len(args) >= 2 {
-			// IP range
-			targets, err = target.GenerateFromRange(args[0], args[1])
+	if *cidrOrRange != "" {
+		// CIDR notation
+		if strings.Contains(*cidrOrRange, "/") {
+			targets, err = target.GenerateFromCIDR(*cidrOrRange)
+			if err != nil {
+				fmt.Printf("Error generating targets from CIDR %s: %v\n", *cidrOrRange, err)
+				os.Exit(1)
+			}
+		} else if strings.Contains(*cidrOrRange, "-") {
+			// IP range with dash notation (e.g., 192.168.1.1-192.168.1.10)
+			parts := strings.Split(*cidrOrRange, "-")
+			if len(parts) != 2 {
+				fmt.Println("Error: Invalid IP range format. Use format: start-end (e.g., 192.168.1.1-192.168.1.10)")
+				os.Exit(1)
+			}
+			targets, err = target.GenerateFromRange(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+			if err != nil {
+				fmt.Printf("Error generating targets from range %s: %v\n", *cidrOrRange, err)
+				os.Exit(1)
+			}
 		} else {
-			fmt.Println("Error: -g requires either CIDR notation or start/end IP addresses")
-			os.Exit(1)
-		}
-
-		if err != nil {
-			fmt.Printf("Error generating targets: %v\n", err)
+			fmt.Println("Error: -g requires either CIDR notation (x.x.x.x/y) or IP range (start-end)")
 			os.Exit(1)
 		}
 	} else if *inputFile != "" {

@@ -111,22 +111,23 @@ func GenerateFromCIDR(cidr string) ([]string, error) {
 		end[i] |= ^mask[i]
 	}
 	
+	// Convert end to IPv4 format for accurate comparison
+	endIPv4 := net.IPv4(end[0], end[1], end[2], end[3])
+	
 	// Generate IPs
 	var ips []string
-	for ip := start; lessThanOrEqual(ip, end); incrementIP(ip) {
-		// Skip network and broadcast addresses for /31 and larger
-		if mask[3] < 255 { // Not /32
-			// Check if it's the network address (first address)
+	for ip := cloneIP(start); lessThanOrEqual(ip, end); incrementIP(ip) {
+		// Skip network and broadcast addresses for /24 and larger networks
+		// (i.e., mask with fewer than 24 bits)
+		if mask[3] < 255 && (len(mask) == 4) { // Not /32 and IPv4
+			// Skip network address (first address)
 			if ip.Equal(start) {
-				incrementIP(ip)
 				continue
 			}
 			
-			// Check if it's the broadcast address (last address)
-			nextIP := cloneIP(ip)
-			incrementIP(nextIP)
-			if nextIP.Equal(net.IPv4(end[0], end[1], end[2], end[3])) {
-				break
+			// Skip broadcast address (last address)
+			if ip.Equal(endIPv4) {
+				continue
 			}
 		}
 		

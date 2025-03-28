@@ -76,15 +76,23 @@ func (p *Pinger) Run() error {
 	if err != nil {
 		return fmt.Errorf("error opening connection: %w", err)
 	}
-	defer p.conn.Close()
+	
+	// Using a WaitGroup to track when the listener goroutine exits
+	var listenerWg sync.WaitGroup
+	listenerWg.Add(1)
 	
 	// Start the listener goroutine
-	go p.listener()
+	go func() {
+		defer listenerWg.Done()
+		p.listener()
+	}()
 	
 	// Send pings
 	err = p.sendPings()
 	if err != nil {
 		close(p.done)
+		listenerWg.Wait() // Wait for listener to exit
+		p.conn.Close()    // Close connection after listener exits
 		return fmt.Errorf("error sending pings: %w", err)
 	}
 	
@@ -92,8 +100,12 @@ func (p *Pinger) Run() error {
 	p.wg.Wait()
 	close(p.done)
 	
-	// Print summary if requested
-	if p.config.ShowStats {
+	// Wait for listener to exit before closing the connection
+	listenerWg.Wait()
+	p.conn.Close()
+	
+	// Print summary if requested or in quiet mode
+	if p.config.ShowStats || p.config.Quiet {
 		p.printSummary()
 	}
 	
@@ -298,9 +310,20 @@ func (p *Pinger) printSummary() {
 	fmt.Println("\n--- GoPing Summary ---")
 	
 	var totalSent, totalReceived int
+	var printedTargets int
 	
 	for _, target := range p.targets {
 		result := p.results[target]
+		
+		// Skip printing based on AliveOnly or UnreachableOnly flags
+		if (p.config.AliveOnly && result.Received == 0) || (p.config.UnreachableOnly && result.Received > 0) {
+			// Still count in totals
+			totalSent += result.Sent
+			totalReceived += result.Received
+			continue
+		}
+		
+		printedTargets++
 		
 		if result.Received > 0 {
 			// Calculate average RTT
@@ -335,7 +358,15 @@ func (p *Pinger) printSummary() {
 	}
 	
 	// Overall summary
-	totalLossPercent := float64(totalSent-totalReceived) / float64(totalSent) * 100
-	fmt.Printf("\nTotal: %d targets, %d/%d packets, %0.1f%% loss\n",
-		len(p.targets), totalReceived, totalSent, totalLossPercent)
+	if printedTargets > 0 {
+		totalLossPercent := float64(totalSent-totalReceived) / float64(totalSent) * 100
+		fmt.Printf("\nTotal: %d targets, %d/%d packets, %0.1f%% loss\n",
+			printedTargets, totalReceived, totalSent, totalLossPercent)
+	} else if p.config.AliveOnly {
+		fmt.Println("\nNo hosts responded.")
+	} else if p.config.UnreachableOnly {
+		fmt.Println("\nAll hosts are reachable.")
+	} else {
+		fmt.Println("\nNo targets to ping.")
+	}
 } 
