@@ -110,7 +110,7 @@ goping -c 5 192.168.1.1 192.168.1.2
 Show only alive hosts:
 
 ```
-goping -a 192.168.1.0/24
+goping -a -g 192.168.1.0/24
 ```
 
 Show summary statistics:
