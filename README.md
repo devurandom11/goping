@@ -20,7 +20,7 @@ GoPing is implemented as a Go application with the following features:
 
 ### Prerequisites
 
-- Go 1.16 or later
+- Go 1.23.0 or later
 - Windows 10/11 or Windows Server 2016 or later
 - Git (optional, for cloning the repository)
 
@@ -127,4 +127,4 @@ goping -s 192.168.1.1 192.168.1.2 192.168.1.3
 
 ## License
 
-This project is released under the MIT License.
+This project is released under the [MIT License](LICENSE.md), which allows you to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software without restriction, provided the original copyright notice and permission notice appear in all copies.
