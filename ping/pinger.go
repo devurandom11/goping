@@ -259,6 +259,13 @@ func (p *Pinger) listener() {
 			// Find the matching target in our list
 			var matchedTarget string
 			for _, t := range p.targets {
+				// For IP addresses in CIDR range, direct comparison should work
+				if t == target {
+					matchedTarget = t
+					break
+				}
+				
+				// For hostnames, try to resolve and compare
 				if ips, err := net.LookupIP(t); err == nil {
 					for _, ip := range ips {
 						if ip.String() == target {
@@ -274,31 +281,44 @@ func (p *Pinger) listener() {
 			}
 			
 			if matchedTarget == "" {
-				continue // No matching target found
+				// If we still don't have a match, use the IP as the target
+				// This ensures we catch all responses in CIDR ranges
+				matchedTarget = target
 			}
 			
 			// Process response
 			p.mutex.Lock()
 			result := p.results[matchedTarget]
-			if result != nil {
-				// Calculate RTT
-				rtt := time.Since(time.Now().Add(-p.config.Timeout)) // Approximate RTT
-				
-				// Update statistics
-				result.Received++
-				result.RTTs = append(result.RTTs, rtt)
-				
-				if rtt < result.MinRTT {
-					result.MinRTT = rtt
+			if result == nil {
+				// Create a new result entry for this IP if it doesn't exist
+				// This happens when we receive responses from IPs not in our original targets list
+				result = &Result{
+					Target: matchedTarget,
+					RTTs:   make([]time.Duration, 0, p.config.Count),
+					MinRTT: time.Duration(math.MaxInt64),
+					MaxRTT: 0,
+					Sent:   1, // Assume we sent 1 since we got a response
 				}
-				if rtt > result.MaxRTT {
-					result.MaxRTT = rtt
-				}
-				
-				// Print result
-				if !p.config.Quiet && !p.config.UnreachableOnly {
-					fmt.Printf("%s : [%d], %v\n", matchedTarget, reply.Seq, rtt)
-				}
+				p.results[matchedTarget] = result
+			}
+			
+			// Calculate RTT
+			rtt := time.Since(time.Now().Add(-p.config.Timeout)) // Approximate RTT
+			
+			// Update statistics
+			result.Received++
+			result.RTTs = append(result.RTTs, rtt)
+			
+			if rtt < result.MinRTT {
+				result.MinRTT = rtt
+			}
+			if rtt > result.MaxRTT {
+				result.MaxRTT = rtt
+			}
+			
+			// Print result
+			if !p.config.Quiet && !p.config.UnreachableOnly {
+				fmt.Printf("%s : [%d], %v\n", matchedTarget, reply.Seq, rtt)
 			}
 			p.mutex.Unlock()
 		}
@@ -312,8 +332,12 @@ func (p *Pinger) printSummary() {
 	var totalSent, totalReceived int
 	var printedTargets int
 	
+	// First print results for the original targets
 	for _, target := range p.targets {
 		result := p.results[target]
+		if result == nil {
+			continue
+		}
 		
 		// Skip printing based on AliveOnly or UnreachableOnly flags
 		if (p.config.AliveOnly && result.Received == 0) || (p.config.UnreachableOnly && result.Received > 0) {
@@ -352,6 +376,58 @@ func (p *Pinger) printSummary() {
 		} else {
 			fmt.Printf("%s : 0/%d packets, 100%% loss\n", target, result.Sent)
 		}
+		
+		totalSent += result.Sent
+		totalReceived += result.Received
+	}
+	
+	// Then print results for any additional IPs that responded but weren't in the original targets
+	for ip, result := range p.results {
+		// Skip IPs that were in the original targets list
+		found := false
+		for _, target := range p.targets {
+			if target == ip {
+				found = true
+				break
+			}
+		}
+		if found {
+			continue
+		}
+		
+		// Skip printing based on flags
+		if (p.config.AliveOnly && result.Received == 0) || (p.config.UnreachableOnly && result.Received > 0) {
+			// Still count in totals
+			totalSent += result.Sent
+			totalReceived += result.Received
+			continue
+		}
+		
+		printedTargets++
+		
+		// Calculate average RTT
+		var sum time.Duration
+		for _, rtt := range result.RTTs {
+			sum += rtt
+		}
+		result.AvgRTT = sum / time.Duration(result.Received)
+		
+		// Calculate standard deviation
+		if result.Received > 1 {
+			var sumSquaredDiff float64
+			for _, rtt := range result.RTTs {
+				diff := float64(rtt - result.AvgRTT)
+				sumSquaredDiff += diff * diff
+			}
+			stdDev := math.Sqrt(sumSquaredDiff / float64(result.Received-1))
+			result.StdDevRTT = time.Duration(stdDev)
+		}
+		
+		lossPercent := 0.0 // These are IPs that responded so loss is 0%
+		
+		fmt.Printf("%s : %d/%d packets, %0.1f%% loss, min/avg/max/stddev = %v/%v/%v/%v\n",
+			ip, result.Received, result.Sent, lossPercent,
+			result.MinRTT, result.AvgRTT, result.MaxRTT, result.StdDevRTT)
 		
 		totalSent += result.Sent
 		totalReceived += result.Received
